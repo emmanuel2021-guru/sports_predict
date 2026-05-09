@@ -28,7 +28,7 @@ from typing import Optional, AsyncIterator, Any
 from fastapi import FastAPI, HTTPException, Query, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel 
 from curl_cffi import requests
 import anthropic
 
@@ -279,12 +279,20 @@ def _headers():
     }
 
 def fetch_with_retry(url: str, retries: int = 3):
-    """Fetch with backoff. No pre-sleep on first attempt — sleep only between retries."""
+    proxy_url = os.environ.get("PROXY_URL")  # e.g. http://user:pass@host:port
+    proxies = {"http": proxy_url, "https": proxy_url} if proxy_url else None
+    
     for attempt in range(retries):
         try:
             if attempt > 0:
                 time.sleep(random.uniform(0.5, 1.5))
-            resp = requests.get(url, headers=_headers(), impersonate="chrome120", timeout=15)
+            resp = requests.get(
+                url,
+                headers=_headers(),
+                impersonate="chrome120",
+                timeout=15,
+                proxies=proxies,
+            )
             if resp.status_code == 200:
                 return resp.json()
             if resp.status_code == 404:
