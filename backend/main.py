@@ -372,14 +372,19 @@ def fetch_h2h_custom(custom_id, doubles_filter: bool):
 
 def fetch_team_history_deep(team_id, doubles_filter: bool):
     all_events = []
+    # Stagger requests to avoid rate limiting through proxy
     def fetch_page(p):
-        data = fetch_with_retry(f"https://api.sofascore.com/api/v1/team/{team_id}/events/last/{p}", retries=2)
+        time.sleep(p * 0.3)  # 0s, 0.3s, 0.6s, 0.9s, 1.2s stagger
+        data = fetch_with_retry(
+            f"https://api.sofascore.com/api/v1/team/{team_id}/events/last/{p}",
+            retries=2
+        )
         return data.get('events', []) if data else []
     with ThreadPoolExecutor(max_workers=3) as ex:
         results = list(ex.map(fetch_page, range(5)))
+    seen, unique = set(), []
     for res in results:
         all_events.extend(res)
-    seen, unique = set(), []
     for e in all_events:
         if e['id'] in seen:
             continue
@@ -390,7 +395,6 @@ def fetch_team_history_deep(team_id, doubles_filter: bool):
         seen.add(e['id'])
         unique.append(e)
     return sorted(unique, key=lambda x: x['startTimestamp'], reverse=True)
-
 
 # ============================================================
 # ENDPOINTS
@@ -491,12 +495,12 @@ def get_match(match_id: str, sport: str = Query(...)):
         raise HTTPException(404, "Match not found")
 
     cid = details.get('customId')
-    with ThreadPoolExecutor(max_workers=3) as ex:
+    with ThreadPoolExecutor(max_workers=2) as ex:  # was 3
         f_h2h = ex.submit(fetch_h2h_custom, cid, cfg['doubles_filter'])
         f_p1 = ex.submit(fetch_team_history_deep, details['homeTeam']['id'], cfg['doubles_filter'])
+        time.sleep(0.5)  # stagger p2 fetch slightly
         f_p2 = ex.submit(fetch_team_history_deep, details['awayTeam']['id'], cfg['doubles_filter'])
         h2h, p1_history, p2_history = f_h2h.result(), f_p1.result(), f_p2.result()
-
     # 🚨 Strip the current match from history. SofaScore's /events/last and
     # /h2h/events endpoints include the match itself if kickoff has passed —
     # for a LIVE match they return the live score (e.g. 1-0), which would leak
