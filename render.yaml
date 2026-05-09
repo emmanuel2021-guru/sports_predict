@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: markets-pro-backend
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: starter   # $7/mo — the free tier doesn't support persistent disks
+    region: oregon
+    healthCheckPath: /api/health
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false   # set this in the Render dashboard
+      - key: CLAUDE_MODEL
+        value: claude-sonnet-4-6
+      - key: CLAUDE_THINKING
+        value: enabled
+      - key: CLAUDE_EFFORT
+        value: medium
+      - key: CLAUDE_MAX_TOKENS
+        value: "2048"
+      - key: CLAUDE_COMPACT_BRIEF
+        value: "true"
+      - key: CORS_ORIGINS
+        sync: false   # set to your Vercel URL, e.g. https://markets-pro.vercel.app
+      - key: PICKS_DB_PATH
+        value: /data/match_picks.db
+    disk:
+      name: picks-db
+      mountPath: /data
+      sizeGB: 1
+
